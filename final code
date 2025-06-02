@@ -1,0 +1,29 @@
+
+/*assigns row number to each player*/
+with loginrank as (
+SELECT player_id, event_date,ROW_NUMBER() OVER (PARTITION BY player_id ORDER BY event_date) AS numlogin
+from activity),
+/*deduct row number from the date and see if we get the same date */
+iscons as(
+    select player_id, DATEADD(day,-numlogin,event_date) as isconsecutive
+    from loginrank
+) ,
+
+/*rank the players - repeated players will have the same rank*/
+checkcons as (
+SELECT player_id,RANK() OVER (PARTITION BY player_id ORDER BY isconsecutive) AS conscheck
+from iscons
+),
+
+/* count the number of players for which the rank is same to get the repeated players count */
+numofrepeatplayers as (
+    select count (*) as repeatplay from 
+     (select distinct player_id as repeatplayers from checkcons
+GROUP BY player_id 
+having SUM(CASE WHEN conscheck =1 THEN 1 ELSE 0 END) >1) as subquery
+    )
+
+/*repeated player/total players */
+select round((select repeatplay*1.00 from numofrepeatplayers)/
+    (select count(distinct player_id) from activity),2) as fraction;
+
